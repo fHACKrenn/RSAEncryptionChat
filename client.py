@@ -119,24 +119,14 @@ class Client:
 
 	def send(self, receiver, msg):
 		try:
-			if receiver not in self.active_users:
-				print(f"Error: {receiver} not found in self.active_users")
-				return
-
 			pem_public_key = self.active_users[receiver]
-
-			if not isinstance(pem_public_key, str):
-				print(f"Error: Invalid type for {receiver}'s public key: {type(pem_public_key)}")
-				return
-	
-			if pem_public_key and isinstance(pem_public_key, str):
-				pubkey_recv = serialization.load_pem_public_key(str(pem_public_key).encode('utf-8'), backend=default_backend()) 
-			crypto = encoder(msg, pubkey_recv)
-			print(crypto)
-			data = {"sender": self.username, "receiver": receiver, "msg": crypto.hex()}
-			self.client.send(json.dumps(data).encode())
+			pubkey_recv = serialization.load_pem_public_key(str(pem_public_key).encode('utf-8'), backend=default_backend()) 
 		except Exception as e:
 			print(f"Error loading PEM-encoded public key: {e}")
+		crypto = encoder(msg, pubkey_recv)
+		print(crypto)
+		data = {"sender": self.username, "receiver": receiver, "msg": crypto.hex()}
+		self.client.send(json.dumps(data).encode())
 
 	def update_users(self, users):
 		del users[self.username]
