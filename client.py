@@ -88,19 +88,26 @@ class Client:
 		try:
 			with open(f'{self.username}/priv.key', 'rb') as f:
 				self.privkeybytes = f.read()
-				self.privkey = int.from_bytes(self.privkeybytes, byteorder='big')
-
+				privkeystr = self.privkeybytes.decode('utf-8')
+				self.privkey = int(privkeystr)
 		except IOError:
-			os.mkdir(self.username)
+			os.makedirs(self.username, exist_ok=True)
 			self.pubkey, self.privkey = setkeys()
-			with open(f'{self.username}/pub.key', 'wb') as f:
-				f.write(self.pubkey.to_bytes((self.pubkey.bit_length() + 7) // 8, 'big'))
-			with open(f'{self.username}/priv.key', 'wb') as f:
-				f.write(self.privkey.to_bytes((self.privkey.bit_length() + 7) // 8, 'big'))
+			try:
+				with open(f'{self.username}/pub.key', 'wb') as f:
+					pubkeystr = str(self.pubkey)
+					f.write(pubkeystr.encode('utf-8'))
+				with open(f'{self.username}/priv.key', 'wb') as f:
+					privkeystr = str(self.privkey)
+					f.write(privkeystr.encode('utf-8'))
+			except Exception as e:
+				print(f"Error: {e}")
 		finally:
 			with open(f'{self.username}/pub.key', 'rb') as f:
-				pub_file_content = f.read()
-			self.pubkey = pub_file_content.decode()
+				pub_file_contentbytes = f.read()
+				pubfilestr = pub_file_contentbytes.decode('utf-8')
+				pub_file_content = int(pubfilestr)
+			self.pubkey = pub_file_content
 
 	def disconnection(self):
 		data = {"sender": self.username, "receiver": "disconnect", "msg": self.DISCONNECT_MESSAGE}
@@ -112,15 +119,24 @@ class Client:
 
 	def send(self, receiver, msg):
 		try:
+			if receiver not in self.active_users:
+				print(f"Error: {receiver} not found in self.active_users")
+				return
+
 			pem_public_key = self.active_users[receiver]
-			print(pem_public_key)
-			# pubkey_recv = int.from_bytes(serialization.load_pem_public_key(pem_public_key.encode(), backend=default_backend()), byteorder='big')
+
+			if not isinstance(pem_public_key, str):
+				print(f"Error: Invalid type for {receiver}'s public key: {type(pem_public_key)}")
+				return
+	
+			if pem_public_key and isinstance(pem_public_key, str):
+				pubkey_recv = serialization.load_pem_public_key(str(pem_public_key).encode('utf-8'), backend=default_backend()) 
+			crypto = encoder(msg, pubkey_recv)
+			print(crypto)
+			data = {"sender": self.username, "receiver": receiver, "msg": crypto.hex()}
+			self.client.send(json.dumps(data).encode())
 		except Exception as e:
 			print(f"Error loading PEM-encoded public key: {e}")
-		crypto = encoder(msg, pubkey_recv)
-		print(crypto)
-		data = {"sender": self.username, "receiver": receiver, "msg": crypto.hex()}
-		self.client.send(json.dumps(data).encode())
 
 	def update_users(self, users):
 		del users[self.username]
